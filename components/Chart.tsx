@@ -15,7 +15,6 @@ import {
 } from "lightweight-charts";
 import { useStore } from "@/lib/store";
 import { Candle } from "@/lib/api";
-import { normalize, resample } from "@/lib/collatz";
 
 interface CrosshairData {
   open: number;
@@ -134,11 +133,17 @@ export default function Chart() {
     });
     volumeSeriesRef.current = volumeSeries;
 
+    // Collatz overlay — own price scale on the left, auto-scales independently
     const collatzSeries = chart.addSeries(LineSeries, {
       color: "#ffd740",
       lineWidth: 2,
+      priceScaleId: "collatz",
       lastValueVisible: false,
       priceLineVisible: false,
+    });
+    collatzSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.05, bottom: 0.2 },
+      visible: false, // hide the left axis — we just want the shape
     });
     collatzSeriesRef.current = collatzSeries;
 
@@ -146,7 +151,8 @@ export default function Chart() {
       color: "#448aff",
       lineWidth: 2,
       lineStyle: 2,
-      lastValueVisible: true,
+      priceScaleId: "collatz",
+      lastValueVisible: false,
       priceLineVisible: false,
     });
     projectionSeriesRef.current = projectionSeries;
@@ -217,7 +223,9 @@ export default function Chart() {
     }
   }, [candles]);
 
-  // Update Collatz overlay
+  // Update Collatz overlay — separate price scale auto-aligns the shape
+  // This is how TradingView does indicator overlays: own y-axis that
+  // scales independently so the shape always matches visually.
   useEffect(() => {
     if (!collatzSeriesRef.current || !projectionSeriesRef.current) return;
 
@@ -232,74 +240,38 @@ export default function Chart() {
     const match = seeds[activeSeedIdx];
     if (!match) return;
 
-    // Color based on mode
     const overlayColor = match.mode === "3n+1" ? "#ffd740" : "#e040fb";
     const projColor = match.mode === "3n+1" ? "#448aff" : "#ff1744";
     collatzSeriesRef.current.applyOptions({ color: overlayColor });
     projectionSeriesRef.current.applyOptions({ color: projColor });
 
-    const closes = candles.map((c) => c.close);
-
-    // Get the matched Collatz window
+    // Get the matched Collatz window — pass raw values
+    // The separate price scale auto-scales to fit the chart area
     const seqWindow = match.sequence.slice(
       match.windowStart,
       match.windowStart + candles.length
     );
-    const seqNorm = normalize(seqWindow);
-    const resampled = resample(seqNorm, candles.length);
-
-    // Map Collatz to price using linear regression fit
-    // This makes the overlay track the actual price level, not just shape
-    const closeNorm = normalize(closes);
-    // Find scale and offset: price = offset + scale * collatzNorm
-    // Using least squares fit between resampled collatz and actual closes
-    const n = candles.length;
-    let sumC = 0, sumP = 0, sumCP = 0, sumCC = 0;
-    for (let i = 0; i < n; i++) {
-      sumC += resampled[i];
-      sumP += closes[i];
-      sumCP += resampled[i] * closes[i];
-      sumCC += resampled[i] * resampled[i];
-    }
-    const denom = n * sumCC - sumC * sumC;
-    let scale = 1, offset = 0;
-    if (Math.abs(denom) > 1e-10) {
-      scale = (n * sumCP - sumC * sumP) / denom;
-      offset = (sumP - scale * sumC) / n;
-    } else {
-      // Fallback: center on mean price
-      const meanP = sumP / n;
-      offset = meanP;
-      scale = 0;
-    }
 
     const collatzData: LineData[] = candles.map((c, i) => ({
       time: c.time as Time,
-      value: offset + scale * resampled[i],
+      value: i < seqWindow.length ? seqWindow[i] : seqWindow[seqWindow.length - 1],
     }));
     collatzSeriesRef.current.setData(collatzData);
 
     // Projection
-    if (match.projectedValues.length > 1) {
+    if (match.projectedValues.length > 0) {
       const lastTime = candles[candles.length - 1].time;
       const timeStep =
         candles.length > 1
           ? candles[candles.length - 1].time - candles[candles.length - 2].time
           : 86400;
 
-      // Normalize projection relative to the tail + projection combined
-      const tailLen = Math.min(10, seqWindow.length);
-      const tail = seqWindow.slice(-tailLen);
-      const combined = [...tail, ...match.projectedValues];
-      const combinedNorm = normalize(combined);
-      const projNorm = combinedNorm.slice(tailLen);
-
-      // Use the same linear mapping so projection stays at the right price level
-      const projData: LineData[] = projNorm.map((v, i) => ({
+      const projData: LineData[] = match.projectedValues.map((v, i) => ({
         time: (lastTime + timeStep * (i + 1)) as Time,
-        value: offset + scale * v,
+        value: v,
       }));
 
+      // Bridge from last overlay point
       const bridge: LineData = {
         time: candles[candles.length - 1].time as Time,
         value: collatzData[collatzData.length - 1].value,

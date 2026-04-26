@@ -192,12 +192,12 @@ export default function BacktestPage() {
 
           <div>
             <label className="text-[10px] text-[#6b7280] uppercase tracking-wider block mb-1">
-              History ({days} days / {(days / 365).toFixed(1)} years)
+              History ({days} days / {(days / 30).toFixed(0)} months)
             </label>
             <input
               type="range"
               min={90}
-              max={1095}
+              max={365}
               step={30}
               value={days}
               onChange={(e) => setDays(parseInt(e.target.value))}
@@ -206,7 +206,7 @@ export default function BacktestPage() {
             />
             <div className="flex justify-between text-[9px] text-[#6b7280] mt-1">
               <span>3 months</span>
-              <span>3 years</span>
+              <span>1 year</span>
             </div>
           </div>
 
