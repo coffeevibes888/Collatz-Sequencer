@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0a0f;
+  --foreground: #e0e0e0;
+  --panel-bg: #12121a;
+  --panel-border: #1e1e2e;
+  --accent-green: #00e676;
+  --accent-red: #ff1744;
+  --accent-gold: #ffd740;
+  --accent-blue: #448aff;
+  --text-muted: #6b7280;
 }
 
 @theme inline {
@@ -12,15 +19,13 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e1e2e transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
